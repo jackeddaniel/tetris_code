@@ -1,0 +1,108 @@
+body {
+  margin: 0;
+  padding: 16px;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  font-family: var(--vscode-font-family);
+  font-size: 13px;
+}
+
+#app {
+  display: flex;
+  flex-wrap: wrap; /* side panel drops below the board when the pane is narrow */
+  gap: 20px;
+  align-items: flex-start;
+}
+
+canvas {
+  display: block;
+  max-height: calc(100vh - 32px);
+  border: 1px solid var(--vscode-panel-border, #333);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+#side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 170px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--vscode-panel-border, #333);
+  border-radius: 4px;
+  background: var(--vscode-sideBar-background, transparent);
+}
+
+.stats dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.65;
+}
+
+.stats dd {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 3px;
+  font: inherit;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  align-items: center;
+  margin: 0;
+  font-size: 12px;
+}
+
+.keys dt {
+  white-space: nowrap;
+}
+
+.keys dd {
+  margin: 0;
+  opacity: 0.75;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 14px;
+  padding: 1px 5px;
+  border: 1px solid var(--vscode-keybindingLabel-border, #555);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 11px;
+  text-align: center;
+  color: var(--vscode-keybindingLabel-foreground, inherit);
+  background: var(--vscode-keybindingLabel-background, transparent);
+}

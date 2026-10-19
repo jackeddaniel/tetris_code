@@ -1,0 +1,60 @@
+{
+  "name": "tetris-beside",
+  "displayName": "Tetris Beside",
+  "description": "Play Tetris in a panel beside your editor, like Markdown preview. Handy while an AI agent or a long build runs in another pane.",
+  "version": "0.1.0",
+  "publisher": "siddhant",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#18181c",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "tetris",
+    "game",
+    "break",
+    "webview"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tetris.start",
+        "title": "Tetris: Play Beside"
+      }
+    ],
+    "configuration": {
+      "title": "Tetris Beside",
+      "properties": {
+        "tetris.showStatusBarButton": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a \"Tetris\" button in the status bar that opens the game."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "test": "node --test \"test/**/*.test.js\"",
+    "package": "vsce package --allow-missing-repository --skip-license -o tetris-beside.vsix",
+    "install-local": "npm run package && code --install-extension tetris-beside.vsix --force"
+  },
+  "devDependencies": {
+    "@types/vscode": "~1.90.0",
+    "@vscode/vsce": "^4.0.0",
+    "typescript": "^5.9.3"
+  }
+}
