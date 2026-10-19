@@ -14,7 +14,7 @@ body {
   align-items: flex-start;
 }
 
-canvas {
+#board {
   display: block;
   max-height: calc(100vh - 32px);
   border: 1px solid var(--vscode-panel-border, #333);
@@ -36,10 +36,7 @@ h1 {
   letter-spacing: 0.04em;
 }
 
-.stats {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.card {
   margin: 0;
   padding: 12px 14px;
   border: 1px solid var(--vscode-panel-border, #333);
@@ -47,11 +44,23 @@ h1 {
   background: var(--vscode-sideBar-background, transparent);
 }
 
+.label,
 .stats dt {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   opacity: 0.65;
+}
+
+.next canvas {
+  display: block;
+  margin: 8px auto 0;
+}
+
+.stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .stats dd {

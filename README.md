@@ -36,6 +36,11 @@ If keys don't respond, click inside the panel.
 | P (or the button) | Pause / resume |
 | Enter (or the button) | Play again after game over |
 
+**What's in the game:** a ghost outline where the piece will land, a next-piece preview,
+the "7-bag" randomizer (every set of seven pieces has one of each), wall and floor kicks
+when you rotate, half a second of lock delay on the ground (moving or rotating restarts
+it, up to 15 times), and a short flash when rows clear.
+
 **Speed:** you start at level 1 (one row every 0.8 s). Every 10 cleared lines is a new
 level, about 10% faster, down to a minimum of 0.1 s per row.
 
@@ -97,8 +102,9 @@ Delete `/tmp/tetris-test` when done.
 | Path | What it is |
 |---|---|
 | `src/extension.ts` | Registers `tetris.start` and the status bar button, opens or reveals the webview panel, builds the HTML and CSP |
-| `media/engine.js` | Pure game logic (board, pieces, collisions, rotation, line clears, speed). No DOM |
-| `media/game.js` | Canvas rendering, game loop, keyboard and pause handling, score |
+| `media/engine.js` | Pure game logic (board, pieces, collisions, rotation and kicks, line clears, drop position, 7-bag, speed). No DOM |
+| `media/game.js` | Canvas rendering, game loop, lock delay, line-clear flash, next preview, keyboard and pause handling, score |
 | `media/style.css` | Panel styling, using your VS Code theme colors |
 | `test/engine.test.js` | `node --test` spec for `engine.js` |
 | `images/icon.png` | Extension and tab icon |
+| `CONTEXT.md` | Project history, decisions and conventions |

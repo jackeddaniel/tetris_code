@@ -86,7 +86,11 @@ function getHtml(webview: vscode.Webview, mediaRoot: vscode.Uri): string {
     <canvas id="board" width="300" height="600"></canvas>
     <div id="side">
       <h1>Tetris</h1>
-      <dl class="stats">
+      <div class="card next">
+        <div class="label">Next</div>
+        <canvas id="next" width="110" height="60"></canvas>
+      </div>
+      <dl class="card stats">
         <div><dt>Score</dt><dd id="score">0</dd></div>
         <div><dt>Level</dt><dd id="level">1</dd></div>
         <div><dt>Lines</dt><dd id="lines">0</dd></div>

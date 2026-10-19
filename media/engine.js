@@ -143,3 +143,51 @@ export function levelFor(lines) {
 export function dropInterval(level) {
   return Math.max(100, Math.round(800 * 0.9 ** (level - 1)));
 }
+
+// ---------------------------------------------------------------------------
+// Helpers for the game loop: hard drop / ghost, wall kicks, line-clear effect
+// and the piece randomizer.
+// ---------------------------------------------------------------------------
+
+/** The piece moved straight down as far as it can go. Used for hard drop and the ghost. */
+export function dropPosition(board, piece) {
+  let dy = 0;
+  while (canMove(board, piece, 0, dy + 1)) dy++;
+  return { ...piece, y: piece.y + dy };
+}
+
+// Offsets tried, in order, when a rotation collides: stay, nudge left/right one
+// then two cells (two is needed for the I piece), then up one (floor kick).
+const KICKS = [[0, 0], [-1, 0], [1, 0], [-2, 0], [2, 0], [0, -1]];
+
+/** Rotate clockwise, shifting the piece if that's what it takes to fit. Null if nothing fits. */
+export function rotateWithKicks(board, piece) {
+  const rotated = rotate(piece);
+  for (const [dx, dy] of KICKS) {
+    if (canMove(board, rotated, dx, dy)) return { ...rotated, x: rotated.x + dx, y: rotated.y + dy };
+  }
+  return null;
+}
+
+/** Indices of the rows that are full, top to bottom. */
+export function fullRows(board) {
+  const rows = [];
+  board.forEach((row, r) => {
+    if (row.every((cell) => cell !== 0)) rows.push(r);
+  });
+  return rows;
+}
+
+/**
+ * "7-bag" randomizer: all seven piece types in a random order (Fisher-Yates
+ * shuffle). Dealing pieces bag by bag means you never wait more than 12 pieces
+ * for any type. `random` is injectable so tests can make it deterministic.
+ */
+export function createBag(random = Math.random) {
+  const bag = [...PIECE_TYPES];
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+  return bag;
+}

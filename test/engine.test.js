@@ -5,8 +5,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  COLS, ROWS, createPiece,
+  COLS, ROWS, PIECE_TYPES, createPiece,
   createBoard, canMove, lockPiece, rotate, clearLines, levelFor, dropInterval,
+  dropPosition, rotateWithKicks, fullRows, createBag,
 } from '../media/engine.js';
 
 function emptyBoard() {
@@ -252,5 +253,93 @@ describe('speed', () => {
 
   it('never drops faster than every 100 ms', () => {
     assert.equal(dropInterval(1000), 100);
+  });
+});
+
+describe('dropPosition', () => {
+  it('drops to the floor on an empty board', () => {
+    assert.equal(dropPosition(emptyBoard(), pieceAt('O', 4, 0)).y, ROWS - 2);
+  });
+
+  it('stops on top of locked cells', () => {
+    const board = emptyBoard();
+    board[10][5] = 'Z';
+    assert.equal(dropPosition(board, pieceAt('O', 4, 0)).y, 8);
+  });
+
+  it('stays put when already resting', () => {
+    const o = pieceAt('O', 4, ROWS - 2);
+    assert.deepEqual(dropPosition(emptyBoard(), o), o);
+  });
+
+  it('does not mutate the piece', () => {
+    const o = pieceAt('O', 4, 0);
+    dropPosition(emptyBoard(), o);
+    assert.equal(o.y, 0);
+  });
+});
+
+describe('rotateWithKicks', () => {
+  it('rotates in place when there is room', () => {
+    const t = pieceAt('T', 4, 5);
+    assert.deepEqual(rotateWithKicks(emptyBoard(), t), rotate(t));
+  });
+
+  it('kicks a vertical I away from the left wall', () => {
+    // Filled column on board column 0; turning horizontal needs x >= 0.
+    const i = { ...pieceAt('I', -2, 5), shape: I_VERTICAL };
+    const result = rotateWithKicks(emptyBoard(), i);
+    assert.equal(result.x, 0);
+    assert.deepEqual(result.shape, rotate(i).shape);
+    assert.equal(canMove(emptyBoard(), result, 0, 0), true);
+  });
+
+  it('kicks up off the floor', () => {
+    // T resting on the floor; its vertical form is one row taller.
+    const t = pieceAt('T', 4, ROWS - 2);
+    const result = rotateWithKicks(emptyBoard(), t);
+    assert.equal(result.x, 4);
+    assert.equal(result.y, ROWS - 3);
+  });
+
+  it('returns null when no kick fits', () => {
+    // Everything full except the cells the horizontal I occupies.
+    const board = Array.from({ length: ROWS }, () => fullRow());
+    const i = pieceAt('I', 3, 5);
+    for (let c = 3; c < 7; c++) board[6][c] = 0;
+    assert.equal(rotateWithKicks(board, i), null);
+  });
+});
+
+describe('fullRows', () => {
+  it('is empty when no row is full', () => {
+    assert.deepEqual(fullRows(emptyBoard()), []);
+  });
+
+  it('lists full rows top to bottom', () => {
+    const board = emptyBoard();
+    board[ROWS - 1] = fullRow();
+    board[ROWS - 3] = fullRow();
+    board[ROWS - 2][0] = 'J';
+    assert.deepEqual(fullRows(board), [ROWS - 3, ROWS - 1]);
+  });
+});
+
+describe('createBag', () => {
+  it('contains each piece type exactly once', () => {
+    for (let n = 0; n < 20; n++) {
+      assert.deepEqual([...createBag()].sort(), [...PIECE_TYPES].sort());
+    }
+  });
+
+  it('uses the random function it is given', () => {
+    assert.deepEqual(createBag(() => 0), createBag(() => 0));
+    assert.notDeepEqual(createBag(() => 0), createBag(() => 0.999));
+  });
+
+  it('does not reorder PIECE_TYPES', () => {
+    const before = [...PIECE_TYPES];
+    createBag();
+    assert.deepEqual(PIECE_TYPES, before);
   });
 });
