@@ -5,3 +5,4 @@ test/**
 out/**/*.map
 tsconfig.json
 **/*.vsix
+CONTEXT.md
