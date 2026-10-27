@@ -16,7 +16,8 @@ body {
 
 #board {
   display: block;
-  max-height: calc(100vh - 32px);
+  height: auto; /* width is set by game.js; height follows the canvas aspect ratio */
+  max-width: calc((100vh - 32px) / 2); /* shrink to fit a short pane without stretching */
   border: 1px solid var(--vscode-panel-border, #333);
   border-radius: 4px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
@@ -52,8 +53,9 @@ h1 {
   opacity: 0.65;
 }
 
-.next canvas {
+.preview canvas {
   display: block;
+  height: auto;
   margin: 8px auto 0;
 }
 

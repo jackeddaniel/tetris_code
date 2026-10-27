@@ -2,7 +2,7 @@
   "name": "tetris-beside",
   "displayName": "Tetris Beside",
   "description": "Play Tetris in a panel beside your editor, like Markdown preview. Handy while an AI agent or a long build runs in another pane.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "siddhant",
   "license": "MIT",
   "icon": "images/icon.png",

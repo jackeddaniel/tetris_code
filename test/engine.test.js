@@ -6,7 +6,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   COLS, ROWS, PIECE_TYPES, createPiece,
-  createBoard, canMove, lockPiece, rotate, clearLines, levelFor, dropInterval,
+  createBoard, canMove, lockPiece, rotate, rotateCCW, clearLines, levelFor, dropInterval,
   dropPosition, rotateWithKicks, fullRows, createBag,
 } from '../media/engine.js';
 
@@ -178,6 +178,30 @@ describe('rotate', () => {
   });
 });
 
+describe('rotateCCW', () => {
+  it('rotates T counter-clockwise', () => {
+    assert.deepEqual(rotateCCW(createPiece('T')).shape, [[0, 1, 0], [1, 1, 0], [0, 1, 0]]);
+  });
+
+  it('undoes a clockwise rotation', () => {
+    for (const type of PIECE_TYPES) {
+      const start = createPiece(type);
+      assert.deepEqual(rotateCCW(rotate(start)).shape, start.shape, type);
+      assert.deepEqual(rotate(rotateCCW(start)).shape, start.shape, type);
+    }
+  });
+
+  it('keeps type and position, and does not mutate the original', () => {
+    const piece = pieceAt('L', 2, 7);
+    const before = piece.shape.map((row) => [...row]);
+    const r = rotateCCW(piece);
+    assert.equal(r.type, 'L');
+    assert.equal(r.x, 2);
+    assert.equal(r.y, 7);
+    assert.deepEqual(piece.shape, before);
+  });
+});
+
 describe('clearLines', () => {
   it('clears nothing when no row is full', () => {
     const board = emptyBoard();
@@ -308,6 +332,19 @@ describe('rotateWithKicks', () => {
     const i = pieceAt('I', 3, 5);
     for (let c = 3; c < 7; c++) board[6][c] = 0;
     assert.equal(rotateWithKicks(board, i), null);
+  });
+
+  it('turns counter-clockwise when asked', () => {
+    const t = pieceAt('T', 4, 5);
+    assert.deepEqual(rotateWithKicks(emptyBoard(), t, 'ccw'), rotateCCW(t));
+  });
+
+  it('kicks a counter-clockwise turn away from the right wall', () => {
+    // Vertical I in the last column (shape column 2 on board column 9, so x = 7).
+    const i = { ...pieceAt('I', 7, 5), shape: I_VERTICAL };
+    const result = rotateWithKicks(emptyBoard(), i, 'ccw');
+    assert.equal(canMove(emptyBoard(), result, 0, 0), true);
+    assert.deepEqual(result.shape, rotateCCW(i).shape);
   });
 });
 

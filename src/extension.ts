@@ -86,9 +86,13 @@ function getHtml(webview: vscode.Webview, mediaRoot: vscode.Uri): string {
     <canvas id="board" width="300" height="600"></canvas>
     <div id="side">
       <h1>Tetris</h1>
-      <div class="card next">
+      <div class="card preview">
+        <div class="label">Hold</div>
+        <canvas id="hold" width="110" height="46"></canvas>
+      </div>
+      <div class="card preview">
         <div class="label">Next</div>
-        <canvas id="next" width="110" height="60"></canvas>
+        <canvas id="next" width="110" height="138"></canvas>
       </div>
       <dl class="card stats">
         <div><dt>Score</dt><dd id="score">0</dd></div>
@@ -98,9 +102,11 @@ function getHtml(webview: vscode.Webview, mediaRoot: vscode.Uri): string {
       <button id="pause" type="button">Pause</button>
       <dl class="keys">
         <dt><kbd>&larr;</kbd> <kbd>&rarr;</kbd></dt><dd>Move</dd>
-        <dt><kbd>&uarr;</kbd></dt><dd>Rotate</dd>
+        <dt><kbd>&uarr;</kbd> <kbd>X</kbd></dt><dd>Rotate</dd>
+        <dt><kbd>Z</kbd></dt><dd>Rotate back</dd>
         <dt><kbd>&darr;</kbd></dt><dd>Soft drop</dd>
         <dt><kbd>Space</kbd></dt><dd>Hard drop</dd>
+        <dt><kbd>C</kbd> <kbd>Shift</kbd></dt><dd>Hold</dd>
         <dt><kbd>P</kbd></dt><dd>Pause</dd>
         <dt><kbd>Enter</kbd></dt><dd>Play again</dd>
       </dl>

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0
+
+- Hold piece (C or Shift), once per piece.
+- Counter-clockwise rotation (Z); X also rotates clockwise.
+- Holding left/right repeats after a short delay at a steady rate, instead of relying on the OS key repeat.
+- Moves, rotations and hold pressed during the line-clear flash are applied to the next piece.
+- Next-piece preview shows three pieces.
+- Soft drop scores 1 point per row, hard drop 2 per row.
+- Sharp canvas on high-DPI screens.
+- Fix: holding Space no longer hard-drops piece after piece, and holding Enter no longer restarts repeatedly.
+- Fix: pausing during the line-clear flash no longer skips the flash.
+- Game state and timing moved into `media/game-state.js` and covered by tests.
+
 ## 0.2.0
 
 - Ghost piece: an outline shows where the current piece will land.

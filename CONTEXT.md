@@ -37,9 +37,11 @@ These still apply unless the author says otherwise.
 ```
 src/extension.ts     Extension host: command, status bar button, webview HTML + CSP
 media/engine.js      Pure rules, no DOM: runs in the webview and under node --test
-media/game.js        Webview: canvas rendering, game loop, input, timing-based behaviour
+media/game-state.js  Game state and timing (lock delay, key repeat, hold, scoring), `now` passed in
+media/game.js        Webview: canvas rendering (hi-DPI), input wiring, animation loop
 media/style.css      Panel layout, uses VS Code theme variables
 test/engine.test.js  Spec for engine.js
+test/game-state.test.js  Spec for game-state.js
 ```
 
 - **One codebase for browser and tests:** `engine.js` is an ES module.
@@ -48,9 +50,9 @@ test/engine.test.js  Spec for engine.js
   stays CommonJS. `game.js` is loaded with `<script type="module">` and imports `./engine.js`.
 - **CSP and modules:** nonces don't carry over to statically imported modules, so `script-src`
   allows `webview.cspSource` as well as the nonce. `localResourceRoots` limits that to `media/`.
-- **Pure vs timed logic:** anything testable as a pure function goes in `engine.js` with tests.
-  Behaviour that depends on time or input (gravity, lock delay, the clear flash, pause) lives
-  in `game.js`.
+- **Pure vs timed logic:** anything testable as a pure function goes in `engine.js`; game
+  state and anything that depends on time goes in `game-state.js`, which never reads a
+  clock (callers pass `now`). `game.js` only draws and forwards keys and timestamps.
 - **Data model:** board is `board[row][col]`, row 0 at the top, cells are `0` or a piece
   letter. A piece is `{ type, shape, x, y }` with a square 0/1 `shape` matrix, and `x`/`y`
   give the top-left of the matrix (may be negative). Engine functions never mutate inputs.
@@ -60,15 +62,17 @@ test/engine.test.js  Spec for engine.js
 | Rule | Where | Details |
 |---|---|---|
 | Pieces | `PIECES` | SRS spawn orientations; I is 4×4, O 2×2, the rest 3×3 |
-| Rotation | `rotate` | Clockwise only: `rotated[r][c] = shape[N-1-c][r]` |
+| Rotation | `rotate`, `rotateCCW` | `rotate` is clockwise: `rotated[r][c] = shape[N-1-c][r]`; `rotateCCW` is its inverse: `shape[c][N-1-r]` |
 | Wall kicks | `rotateWithKicks` | Tries offsets (0,0), (−1,0), (+1,0), (−2,0), (+2,0), (0,−1). Simplified, not full SRS kick tables |
 | Randomizer | `createBag` | 7-bag via Fisher-Yates; `random` is injectable for tests |
 | Ghost / hard drop | `dropPosition` | Same function for both |
 | Speed | `levelFor`, `dropInterval` | Level = 1 + lines/10; interval = max(100, 800 × 0.9^(level−1)) ms |
-| Scoring | `game.js` | 100/300/500/800 for 1–4 rows, × current level |
-| Lock delay | `game.js` | 500 ms once grounded; a successful move/rotate restarts it, max 15 times |
-| Clear flash | `game.js` | Full rows flash white and fade over 220 ms; input is ignored meanwhile |
-| Game over | `game.js` | A new piece can't spawn; Enter or the button restarts |
+| Scoring | `game-state.js` | 100/300/500/800 for 1–4 rows, × level at the start of the clear. Soft drop 1/row, hard drop 2/row |
+| Lock delay | `game-state.js` | 500 ms once grounded; a successful move/rotate restarts it, max 15 times |
+| Clear flash | `game-state.js` | Full rows flash white and fade over 220 ms. Left/right/rotate/hold are buffered (max 8) and replayed on the next piece; drops are ignored |
+| Key repeat | `game-state.js` | Left/right: move on press, repeat after 150 ms (DAS) every 40 ms (ARR). OS auto-repeat is ignored except for soft drop. Cleared on window blur |
+| Hold | `game-state.js` | C or Shift, once per piece; the swapped-in piece spawns at the top |
+| Game over | `game-state.js` | A new piece can't spawn; Enter or the button restarts |
 
 ## How it was built (history)
 
@@ -85,17 +89,21 @@ test/engine.test.js  Spec for engine.js
    icon, fixed `.vsix` name, `npm run install-local`, side-panel and canvas styling.
 7. **Gameplay (0.2.0):** ghost piece, next preview, 7-bag, wall/floor kicks, lock delay,
    line-clear flash.
+8. **Feel (0.3.0):** timing and scoring moved out of `game.js` into the pure
+   `game-state.js` (with tests); soft/hard drop points, hold piece, counter-clockwise
+   rotation, DAS/ARR key repeat, input buffering during the clear flash, 3-piece preview,
+   hi-DPI canvas, `e.repeat` ignored for everything but soft drop, pause no longer eats the flash.
 
 ## How changes are verified
 
-- `npm test` for engine rules (45 tests at 0.2.0).
+- `npm test` for engine rules and game state/timing (89 tests at 0.3.0).
 - `npm run compile` for the extension.
 - Install check without touching the real VS Code: install the `.vsix` into a throwaway
   `--user-data-dir`/`--extensions-dir` and list or open it (README has the commands).
-- UI and timing: during development the panel was rendered in headless Chrome with mocked
-  VS Code theme variables, and `game.js` was driven with a fake `performance.now()` to check
-  lock delay, kicks, the clear flash, the bag and game over. Those harnesses were throwaway
-  and are not in the repo.
+- UI and drawing: the panel was rendered in headless Chrome against the real HTML from
+  `getHtml` (with a stubbed `vscode` module and the real CSP) and driven with synthetic key
+  events. That harness was throwaway and is not in the repo. Timing is covered by
+  `test/game-state.test.js` instead.
 
 ## Environment notes (author's machine)
 
@@ -111,4 +119,4 @@ test/engine.test.js  Spec for engine.js
   hence `--skip-license`. Same for `--allow-missing-repository`.
 - Not published to the Marketplace; publisher id `siddhant` is a placeholder.
 - Ideas not done yet: high score saved via `globalState` (webview `localStorage` isn't
-  reliable here), hold piece, full SRS kick tables, counter-clockwise rotation.
+  reliable here), full SRS kick tables, T-spins.

@@ -98,9 +98,8 @@ export function lockPiece(board, piece) {
  * Returns a NEW piece rotated 90 degrees clockwise: same type, x and y,
  * new shape matrix. For a square N x N matrix, clockwise rotation is
  *   rotated[r][c] = shape[N - 1 - c][r]
- * Do not mutate `piece.shape`. (O is 2x2, so it should come out unchanged.)
- * No wall kicks: game.js checks canMove(board, rotated, 0, 0) and discards
- * the rotation if it collides.
+ * Does not mutate `piece.shape`. (O is 2x2, so it comes out unchanged.)
+ * No wall kicks: see rotateWithKicks.
  *
  * @param {{type: string, shape: number[][], x: number, y: number}} piece
  * @returns {{type: string, shape: number[][], x: number, y: number}}
@@ -109,6 +108,17 @@ export function rotate(piece) {
   const n = piece.shape.length;
   const shape = Array.from({ length: n }, (_, r) =>
     Array.from({ length: n }, (_, c) => piece.shape[n - 1 - c][r]));
+  return { ...piece, shape };
+}
+
+/**
+ * Same as `rotate` but 90 degrees counter-clockwise:
+ *   rotated[r][c] = shape[c][N - 1 - r]
+ */
+export function rotateCCW(piece) {
+  const n = piece.shape.length;
+  const shape = Array.from({ length: n }, (_, r) =>
+    Array.from({ length: n }, (_, c) => piece.shape[c][n - 1 - r]));
   return { ...piece, shape };
 }
 
@@ -160,9 +170,12 @@ export function dropPosition(board, piece) {
 // then two cells (two is needed for the I piece), then up one (floor kick).
 const KICKS = [[0, 0], [-1, 0], [1, 0], [-2, 0], [2, 0], [0, -1]];
 
-/** Rotate clockwise, shifting the piece if that's what it takes to fit. Null if nothing fits. */
-export function rotateWithKicks(board, piece) {
-  const rotated = rotate(piece);
+/**
+ * Rotate (clockwise by default, or `'ccw'`), shifting the piece if that's what it
+ * takes to fit. Null if nothing fits.
+ */
+export function rotateWithKicks(board, piece, direction = 'cw') {
+  const rotated = direction === 'ccw' ? rotateCCW(piece) : rotate(piece);
   for (const [dx, dy] of KICKS) {
     if (canMove(board, rotated, dx, dy)) return { ...rotated, x: rotated.x + dx, y: rotated.y + dy };
   }

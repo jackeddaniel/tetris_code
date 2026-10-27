@@ -1,20 +1,38 @@
-// Rendering, input and the game loop. All rules live in engine.js.
+// Rendering and input. Rules live in engine.js, state and timing in game-state.js.
+import { COLS, ROWS, PIECES, dropPosition } from './engine.js';
 import {
-  COLS, ROWS, PIECES,
-  createBoard, createPiece, canMove, lockPiece, clearLines, levelFor, dropInterval,
-  dropPosition, rotateWithKicks, fullRows, createBag,
-} from './engine.js';
+  createGame, step, press, release, releaseAll, togglePause, level, upcoming,
+  NEXT_COUNT, CLEAR_MS,
+} from './game-state.js';
 
 const CELL = 30;
-const NEXT_CELL = 22;
-const LINE_SCORES = [0, 100, 300, 500, 800];
-const LOCK_DELAY_MS = 500; // time a grounded piece waits before locking
-const MAX_LOCK_RESETS = 15; // moves/rotations on the ground that restart that wait
-const CLEAR_MS = 220; // length of the line-clear flash
+const BOARD_W = COLS * CELL;
+const BOARD_H = ROWS * CELL;
+const PREVIEW_W = 110;
+const PREVIEW_SLOT_H = 46;
+const PREVIEW_CELL = 18;
 const GAME_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', ' ']);
+
+// Key -> action. Letters are matched lower-case. Shift is a hold key too.
+const KEY_ACTIONS = {
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  ArrowDown: 'softDrop',
+  ArrowUp: 'rotateCW',
+  x: 'rotateCW',
+  z: 'rotateCCW',
+  ' ': 'hardDrop',
+  c: 'hold',
+  Shift: 'hold',
+};
+// Only these may fire again from the OS key repeat. Left/right repeat through the
+// game's own delay (DAS/ARR); everything else is once per key press.
+const OS_REPEATABLE = new Set(['softDrop']);
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
+const holdCanvas = document.getElementById('hold');
+const holdCtx = holdCanvas.getContext('2d');
 const nextCanvas = document.getElementById('next');
 const nextCtx = nextCanvas.getContext('2d');
 const scoreEl = document.getElementById('score');
@@ -22,106 +40,32 @@ const levelEl = document.getElementById('level');
 const linesEl = document.getElementById('lines');
 const pauseBtn = document.getElementById('pause');
 
-canvas.width = COLS * CELL;
-canvas.height = ROWS * CELL;
-
-let board, piece, queue, score, lines, paused, gameOver, lastDrop;
-let lockStart; // when the current piece touched down, or null while it's falling
-let lockResets;
-let clearing; // { rows, start } while full rows are flashing, else null
-
-function reset() {
-  board = createBoard();
-  queue = [];
-  score = 0;
-  lines = 0;
-  paused = false;
-  gameOver = false;
-  clearing = null;
-  pauseBtn.textContent = 'Pause';
-  updateStats();
-  spawn();
+// Backing stores are scaled by devicePixelRatio so Retina screens stay sharp;
+// drawing code keeps using CSS pixels.
+let dpr = 0;
+function sizeCanvas(cv, c, width, height) {
+  cv.width = Math.round(width * dpr);
+  cv.height = Math.round(height * dpr);
+  cv.style.width = `${width}px`; // height follows from the aspect ratio
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-function updateStats() {
-  scoreEl.textContent = score.toLocaleString();
-  levelEl.textContent = String(levelFor(lines));
-  linesEl.textContent = String(lines);
+function applyDpr() {
+  const ratio = window.devicePixelRatio || 1;
+  if (ratio === dpr) return;
+  dpr = ratio;
+  sizeCanvas(canvas, ctx, BOARD_W, BOARD_H);
+  sizeCanvas(holdCanvas, holdCtx, PREVIEW_W, PREVIEW_SLOT_H);
+  sizeCanvas(nextCanvas, nextCtx, PREVIEW_W, PREVIEW_SLOT_H * NEXT_COUNT);
 }
 
-function spawn() {
-  if (queue.length < 2) queue.push(...createBag());
-  piece = createPiece(queue.shift());
-  lockStart = null;
-  lockResets = 0;
-  lastDrop = performance.now();
-  drawNext();
-  if (!canMove(board, piece, 0, 0)) {
-    gameOver = true;
-    pauseBtn.textContent = 'Play again';
-  }
-}
+applyDpr();
+window.addEventListener('resize', applyDpr); // page zoom or moving to another screen changes the ratio
 
-// --- Actions ---------------------------------------------------------------
+let game = createGame(Math.random, performance.now());
 
-// A successful move or rotation on the ground buys the player more time,
-// up to MAX_LOCK_RESETS times so a piece can't be stalled forever.
-function onPieceMoved() {
-  if (lockStart !== null && lockResets < MAX_LOCK_RESETS) {
-    lockStart = performance.now();
-    lockResets++;
-  }
-}
-
-function tryMove(dx, dy) {
-  if (!canMove(board, piece, dx, dy)) return false;
-  piece = { ...piece, x: piece.x + dx, y: piece.y + dy };
-  onPieceMoved();
-  return true;
-}
-
-function tryRotate() {
-  const rotated = rotateWithKicks(board, piece);
-  if (!rotated) return;
-  piece = rotated;
-  onPieceMoved();
-}
-
-function hardDrop() {
-  piece = dropPosition(board, piece);
-  lock();
-}
-
-function lock() {
-  board = lockPiece(board, piece);
-  const rows = fullRows(board);
-  if (rows.length > 0) {
-    clearing = { rows, start: performance.now() }; // finishClear() runs when the flash ends
-  } else {
-    spawn();
-  }
-}
-
-function finishClear() {
-  const result = clearLines(board);
-  board = result.board;
-  // Classic scoring: clearing more rows at once, and at higher levels, pays more.
-  score += (LINE_SCORES[result.cleared] ?? 0) * levelFor(lines);
-  lines += result.cleared;
-  clearing = null;
-  updateStats();
-  spawn();
-}
-
-function togglePause() {
-  if (gameOver) return;
-  paused = !paused;
-  pauseBtn.textContent = paused ? 'Resume' : 'Pause';
-  if (!paused) {
-    // Don't drop or lock the moment we resume.
-    lastDrop = performance.now();
-    if (lockStart !== null) lockStart = performance.now();
-  }
+function restart() {
+  game = createGame(Math.random, performance.now());
 }
 
 // --- Rendering -------------------------------------------------------------
@@ -163,10 +107,10 @@ function forEachFilled(p, fn) {
 }
 
 function drawOverlay(title, lines) {
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
+  const cx = BOARD_W / 2;
+  const cy = BOARD_H / 2;
   ctx.fillStyle = 'rgba(10, 10, 14, 0.75)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, BOARD_W, BOARD_H);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#fff';
@@ -177,114 +121,133 @@ function drawOverlay(title, lines) {
   lines.forEach((line, i) => ctx.fillText(line, cx, cy + 14 + i * 22));
 }
 
-function draw(now) {
+function drawBoard(now) {
   ctx.fillStyle = BOARD_BG;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, BOARD_W, BOARD_H);
 
   ctx.strokeStyle = GRID;
   ctx.lineWidth = 1;
   ctx.beginPath();
-  for (let c = 1; c < COLS; c++) { ctx.moveTo(c * CELL + 0.5, 0); ctx.lineTo(c * CELL + 0.5, canvas.height); }
-  for (let r = 1; r < ROWS; r++) { ctx.moveTo(0, r * CELL + 0.5); ctx.lineTo(canvas.width, r * CELL + 0.5); }
+  for (let c = 1; c < COLS; c++) { ctx.moveTo(c * CELL + 0.5, 0); ctx.lineTo(c * CELL + 0.5, BOARD_H); }
+  for (let r = 1; r < ROWS; r++) { ctx.moveTo(0, r * CELL + 0.5); ctx.lineTo(BOARD_W, r * CELL + 0.5); }
   ctx.stroke();
 
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
-      const cell = board[r]?.[c];
+      const cell = game.board[r]?.[c];
       if (cell) drawCell(c, r, PIECES[cell]?.color ?? '#888');
     }
   }
 
-  if (clearing) {
+  if (game.clearing) {
     // Full rows flash white and fade out before they're removed.
-    const t = Math.min(1, (now - clearing.start) / CLEAR_MS);
+    const t = Math.min(1, (now - game.clearing.start) / CLEAR_MS);
     ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * (1 - t)})`;
-    for (const r of clearing.rows) ctx.fillRect(0, r * CELL, canvas.width, CELL);
-  } else if (!gameOver) {
-    const color = PIECES[piece.type].color;
-    forEachFilled(dropPosition(board, piece), (c, r) => drawGhostCell(c, r, color));
-    forEachFilled(piece, (c, r) => drawCell(c, r, color));
+    for (const r of game.clearing.rows) ctx.fillRect(0, r * CELL, BOARD_W, CELL);
+  } else if (!game.gameOver) {
+    const color = PIECES[game.piece.type].color;
+    forEachFilled(dropPosition(game.board, game.piece), (c, r) => drawGhostCell(c, r, color));
+    forEachFilled(game.piece, (c, r) => drawCell(c, r, color));
   }
 
-  if (gameOver) {
-    drawOverlay('Game over', [`Score ${score.toLocaleString()} · Level ${levelFor(lines)}`, 'Press Enter to play again']);
-  } else if (paused) {
+  if (game.gameOver) {
+    drawOverlay('Game over', [
+      `Score ${game.score.toLocaleString()} · Level ${level(game)}`,
+      'Press Enter to play again',
+    ]);
+  } else if (game.paused) {
     drawOverlay('Paused', ['Press P to resume']);
   }
 }
 
-// Next piece, centred on its filled cells in the small side canvas.
-function drawNext() {
-  nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
-  const type = queue[0];
+// A piece centred on its filled cells inside the slot at (0, slotY) of a preview canvas.
+function drawPreview(c, type, slotY, alpha = 1) {
   const cells = [];
-  PIECES[type].shape.forEach((row, r) => row.forEach((filled, c) => {
-    if (filled) cells.push([c, r]);
+  PIECES[type].shape.forEach((row, r) => row.forEach((filled, col) => {
+    if (filled) cells.push([col, r]);
   }));
-  const minC = Math.min(...cells.map(([c]) => c));
-  const maxC = Math.max(...cells.map(([c]) => c));
+  const minC = Math.min(...cells.map(([col]) => col));
+  const maxC = Math.max(...cells.map(([col]) => col));
   const minR = Math.min(...cells.map(([, r]) => r));
   const maxR = Math.max(...cells.map(([, r]) => r));
-  const ox = (nextCanvas.width - (maxC - minC + 1) * NEXT_CELL) / 2;
-  const oy = (nextCanvas.height - (maxR - minR + 1) * NEXT_CELL) / 2;
-  for (const [c, r] of cells) {
-    drawBlock(nextCtx, ox + (c - minC) * NEXT_CELL + 1, oy + (r - minR) * NEXT_CELL + 1, NEXT_CELL - 2, PIECES[type].color);
+  const ox = (PREVIEW_W - (maxC - minC + 1) * PREVIEW_CELL) / 2;
+  const oy = slotY + (PREVIEW_SLOT_H - (maxR - minR + 1) * PREVIEW_CELL) / 2;
+  c.globalAlpha = alpha;
+  for (const [col, r] of cells) {
+    drawBlock(c, ox + (col - minC) * PREVIEW_CELL + 1, oy + (r - minR) * PREVIEW_CELL + 1,
+      PREVIEW_CELL - 2, PIECES[type].color);
   }
+  c.globalAlpha = 1;
+}
+
+function drawSidePreviews() {
+  holdCtx.clearRect(0, 0, PREVIEW_W, PREVIEW_SLOT_H);
+  // Dimmed once you've used this piece's hold.
+  if (game.hold) drawPreview(holdCtx, game.hold, 0, game.holdUsed ? 0.35 : 1);
+
+  nextCtx.clearRect(0, 0, PREVIEW_W, PREVIEW_SLOT_H * NEXT_COUNT);
+  upcoming(game).forEach((type, i) => drawPreview(nextCtx, type, i * PREVIEW_SLOT_H));
+}
+
+function setText(el, text) {
+  if (el.textContent !== text) el.textContent = text;
+}
+
+function render(now) {
+  drawBoard(now);
+  drawSidePreviews();
+  setText(scoreEl, game.score.toLocaleString());
+  setText(levelEl, String(level(game)));
+  setText(linesEl, String(game.lines));
+  setText(pauseBtn, game.gameOver ? 'Play again' : game.paused ? 'Resume' : 'Pause');
 }
 
 // --- Loop and input --------------------------------------------------------
 
-function update(now) {
-  if (clearing) {
-    if (now - clearing.start >= CLEAR_MS) finishClear();
-    return;
-  }
-  if (!canMove(board, piece, 0, 1)) {
-    if (lockStart === null) lockStart = now;
-    if (now - lockStart >= LOCK_DELAY_MS) lock();
-    return;
-  }
-  lockStart = null; // slid off a ledge: falling again
-  if (now - lastDrop >= dropInterval(levelFor(lines))) {
-    piece = { ...piece, y: piece.y + 1 };
-    lastDrop = now;
-  }
-}
-
 function frame(now) {
-  if (!paused && !gameOver) update(now);
-  draw(now);
+  step(game, now);
+  render(now);
   requestAnimationFrame(frame);
 }
 
+function keyOf(e) {
+  const key = e.key ?? ''; // some synthetic events (autofill) have no key
+  return key.length === 1 ? key.toLowerCase() : key;
+}
+
 window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return; // leave editor shortcuts alone
+  const key = keyOf(e);
   // Stop arrows/space from scrolling or "clicking" a focused button.
   if (GAME_KEYS.has(e.key)) e.preventDefault();
 
-  if (e.key === 'p' || e.key === 'P') {
-    if (!e.repeat) togglePause();
+  if (key === 'p') {
+    if (!e.repeat) togglePause(game, performance.now());
     return;
   }
-  if (gameOver) {
-    if (e.key === 'Enter') reset();
+  if (key === 'Enter') {
+    if (!e.repeat && game.gameOver) restart();
     return;
   }
-  if (paused || clearing) return;
 
-  switch (e.key) {
-    case 'ArrowLeft': tryMove(-1, 0); break;
-    case 'ArrowRight': tryMove(1, 0); break;
-    case 'ArrowDown': if (tryMove(0, 1)) lastDrop = performance.now(); break;
-    case 'ArrowUp': tryRotate(); break;
-    case ' ': hardDrop(); break;
-  }
+  const action = KEY_ACTIONS[key];
+  if (!action) return;
+  if (e.repeat && !OS_REPEATABLE.has(action)) return;
+  press(game, action, performance.now());
 });
 
+window.addEventListener('keyup', (e) => {
+  const action = KEY_ACTIONS[keyOf(e)];
+  if (action) release(game, action, performance.now());
+});
+
+// Key-up events are lost when focus leaves the panel mid-press.
+window.addEventListener('blur', () => releaseAll(game));
+
 pauseBtn.addEventListener('click', () => {
-  if (gameOver) reset();
-  else togglePause();
+  if (game.gameOver) restart();
+  else togglePause(game, performance.now());
   pauseBtn.blur(); // keep keyboard input going to the game, not the button
 });
 
-reset();
 requestAnimationFrame(frame);
